@@ -6,15 +6,17 @@ import User from "./models/user_model.js"
 
 dotenv.config()
 const app = express()
-const PORT = process.env.PORT || 6000
+const PORT = process.env.PORT || 5000
 
+// Add this line before your routes
+app.use(express.json());
 
 // app.get("/", (req, res) => {
 //     res.send("Hi... Finally working on Java Script and web dev")
 // })
 
 
-app.use("/app/auth", authRoutes)
+app.use("/application/auth", authRoutes)
 
 app.listen(PORT, () => {
     client();
