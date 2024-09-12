@@ -48,6 +48,12 @@ const User = {
     const result = await pool.query(query, values);
     return result.rows[0];
   },
+  updateLastLogin: async (userId) => {
+    const query = 'UPDATE users SET last_login = NOW() WHERE id = $1 RETURNING *';
+    const values = [userId];
+    const result = await pool.query(query, values);
+    return result.rows[0];
+  },
 };
 
 export default User;

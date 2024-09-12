@@ -102,7 +102,59 @@ export const verifyEmail = async (req, res) => {
 }
 
 const login = async (req, res) => {
-    res.send("Login Route")
+    const { email, password } = req.body;
+    try {
+        // Check if req.body exists
+        if (!req.body) {
+            return res.status(400).json({
+                success: false,
+                message: "Request body is missing"
+            });
+        }
+
+        // Check if email and password are provided
+        if (!email || !password) {
+            return res.status(400).json({
+                success: false,
+                message: "Email and password are required"
+            });
+        }
+
+        const user = await User.findOne({ email });
+        if (!user) {
+            return res.status(400).json({
+                success: false, message: "User not found"
+            });
+        }
+
+        const isPasswordCorrect = await bcrypt.compare(password, user.password);
+        if (!isPasswordCorrect) {
+            return res.status(400).json({
+                success: false, message: "Invalid password"
+            });
+        }
+
+        generateJWTTokenAndSetCookie(user.id, res);
+
+        // Update lastLogin
+        const updatedUser = await User.updateLastLogin(user.id);
+
+        return res.status(200).json({
+            success: true, 
+            message: "Login successful",
+            user: {
+                ...updatedUser,
+                password: undefined
+            }
+        });
+        
+    }
+    catch (error) {
+        console.error('Error in login function:', error);
+        return res.status(400).json({
+            success: false, message: error.message
+        });
+    }
 }
 
 const logout = async (req, res) => {
