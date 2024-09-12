@@ -106,7 +106,11 @@ const login = async (req, res) => {
 }
 
 const logout = async (req, res) => {
-    res.send("Logout Route")
+    res.clearCookie("authtoken")
+    res.status(200).json({
+        success: true,
+        message: "Logout successful"
+    })
 }
 
 export { register, login, logout }
