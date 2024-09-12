@@ -36,7 +36,18 @@ const User = {
     const result = await pool.query(query, values);
     return result.rows[0];
   },
-  // Add more methods as needed
+  findByVerificationToken: async (token) => {
+    const query = 'SELECT * FROM users WHERE verification_token = $1 AND verification_token_expires_at > NOW() LIMIT 1';
+    const values = [token];
+    const result = await pool.query(query, values);
+    return result.rows[0];
+  },
+  verifyUser: async (userId) => {
+    const query = 'UPDATE users SET is_verified = true, verification_token = NULL, verification_token_expires_at = NULL WHERE id = $1 RETURNING *';
+    const values = [userId];
+    const result = await pool.query(query, values);
+    return result.rows[0];
+  },
 };
 
 export default User;

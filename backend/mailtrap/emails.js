@@ -26,14 +26,14 @@ export const sendWelcomeEmail = async (email, name) => {
 
     try {
         const emailResponse = await mailtrapClient.send({
-            from: sender,
-            to: recipients,
+            from: mailtrapSender,  // Use mailtrapSender instead of sender
+            to: recipient,  // Use recipient instead of recipients
             template_uuid: "e919b167-3eef-4924-9ff6-5d9211aab9d2",
             template_variables: {
               "company_info_name": "AI Catalyst",
               "name": name
             }
-          });
+        });
 
         console.log("Welcome email sent successfully:", emailResponse);
 

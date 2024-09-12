@@ -2,10 +2,10 @@ import bcrypt from "bcryptjs";
 import User from "../models/user_model.js";
 import { getVerificationCode } from "../utils/getVerificationCode.js";
 import { generateJWTTokenAndSetCookie } from "../utils/generateJWTTokenAndSetCookie.js";
-import {sendVerificationEmail } from "../mailtrap/emails.js";
+import { sendVerificationEmail, sendWelcomeEmail } from "../mailtrap/emails.js";
 
 const register = async (req, res) => {
-    console.log('Request body:', req.body);
+    // console.log('Request body:', req.body);
 
     if (!req.body) {
         return res.status(400).json({
@@ -62,31 +62,33 @@ const register = async (req, res) => {
 }
 
 export const verifyEmail = async (req, res) => {
-    // get the verification code from the request body
-    const {code} = req.body;
-    try{
-        const user = await User.findOne({
-            verificationToken: code,
-            verificationTokenExpires: { $gt: Date.now() }
-        })
-        if(!user) {
+    const { code } = req.body;
+    try {
+        console.log('Received verification code:', code);
+        console.log('Current time:', new Date());
+
+        const user = await User.findByVerificationToken(code);
+
+        console.log('Found user:', user);
+
+        if (!user) {
             return res.status(400).json({
                 success: false, message: "Invalid or expired verification code"
             });
         }
 
         // update the user's email verification status
-        user.is_verified = true;
-        user.verificationToken = null;
-        user.verificationTokenExpires = null;
-        await user.save();
+        const updatedUser = await User.verifyUser(user.id);
 
-        await sendWelcomeEmail(user.email, user.name);
+        console.log('Updated user:', updatedUser);
+
+        await sendWelcomeEmail(updatedUser.email, updatedUser.name);
 
         return res.status(200).json({
-            success: true, message: "Email verified successfully",
+            success: true, 
+            message: "Email verified successfully",
             user: {
-                ...user.__doc,
+                ...updatedUser,
                 password: undefined
             }
         });
