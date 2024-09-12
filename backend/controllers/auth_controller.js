@@ -1,8 +1,9 @@
 import bcrypt from "bcryptjs";
+import crypto from "crypto";
 import User from "../models/user_model.js";
 import { getVerificationCode } from "../utils/getVerificationCode.js";
 import { generateJWTTokenAndSetCookie } from "../utils/generateJWTTokenAndSetCookie.js";
-import { sendVerificationEmail, sendWelcomeEmail } from "../mailtrap/emails.js";
+import { sendVerificationEmail, sendWelcomeEmail , sendResetPasswordEmail} from "../mailtrap/emails.js";
 
 const register = async (req, res) => {
     // console.log('Request body:', req.body);
@@ -165,4 +166,39 @@ const logout = async (req, res) => {
     })
 }
 
-export { register, login, logout }
+const forgotPassword = async (req, res) => {
+    const { email } = req.body;
+    try {
+        const user = await User.findOne({ email });
+        if (!user) {
+            return res.status(400).json({
+                success: false, message: "User not found"
+            });
+        }
+
+        const resetToken = crypto.randomBytes(20).toString('hex');
+        const resetTokenExpires = new Date(Date.now() + 1000 * 60 * 60 * 1); // 1 hour
+
+        // Update user with reset password token and expiration
+        const updatedUser = await User.updateResetPasswordToken(email, resetToken, resetTokenExpires);
+
+        await sendResetPasswordEmail(updatedUser.email, resetToken);
+
+        return res.status(200).json({
+            success: true, 
+            message: "Password reset email sent",
+            user: {
+                ...updatedUser,
+                password: undefined
+            }
+        });
+    }
+    catch (error) {
+        console.error('Error in forgotPassword function:', error);
+        return res.status(400).json({
+            success: false, message: error.message
+        });
+    }
+}
+
+export { register, login, logout, forgotPassword }

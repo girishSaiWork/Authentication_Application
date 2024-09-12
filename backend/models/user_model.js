@@ -54,6 +54,12 @@ const User = {
     const result = await pool.query(query, values);
     return result.rows[0];
   },
+  updateResetPasswordToken: async (email, resetToken, resetTokenExpires) => {
+    const query = 'UPDATE users SET reset_password_token = $1, reset_password_token_expires_at = $2 WHERE email = $3 RETURNING *';
+    const values = [resetToken, resetTokenExpires, email];
+    const result = await pool.query(query, values);
+    return result.rows[0];
+  },
 };
 
 export default User;
