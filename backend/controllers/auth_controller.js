@@ -61,6 +61,44 @@ const register = async (req, res) => {
     }
 }
 
+export const verifyEmail = async (req, res) => {
+    // get the verification code from the request body
+    const {code} = req.body;
+    try{
+        const user = await User.findOne({
+            verificationToken: code,
+            verificationTokenExpires: { $gt: Date.now() }
+        })
+        if(!user) {
+            return res.status(400).json({
+                success: false, message: "Invalid or expired verification code"
+            });
+        }
+
+        // update the user's email verification status
+        user.is_verified = true;
+        user.verificationToken = null;
+        user.verificationTokenExpires = null;
+        await user.save();
+
+        await sendWelcomeEmail(user.email, user.name);
+
+        return res.status(200).json({
+            success: true, message: "Email verified successfully",
+            user: {
+                ...user.__doc,
+                password: undefined
+            }
+        });
+        
+    } catch (error) {
+        console.error('Error in verifyEmail function:', error);
+        return res.status(400).json({
+            success: false, message: error.message
+        });
+    }
+}
+
 const login = async (req, res) => {
     res.send("Login Route")
 }
