@@ -1,4 +1,11 @@
-# Logs
+# Initialize a new repository
+git init
+
+# Add all files
+git add .
+
+# Create initial commit
+git commit -m "Initial commit: Authentication Application"# Logs
 logs
 *.log
 npm-debug.log*
