@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useState, useEffect } from 'react';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 
 export default function ResetPasswordForm() {
@@ -12,10 +12,24 @@ export default function ResetPasswordForm() {
     const navigate = useNavigate();
     const [searchParams] = useSearchParams();
     const { resetPassword } = useAuth();
+    
+    // Get token from either URL params or query params
     const token = searchParams.get('token');
+
+    useEffect(() => {
+        if (!token) {
+            navigate('/forgot-password');
+        }
+    }, [token, navigate]);
+
+    // If no token is present, don't render the form
+    if (!token) {
+        return null;
+    }
 
     const handleChange = (e) => {
         setFormData({ ...formData, [e.target.name]: e.target.value });
+        setError(''); // Clear error when user starts typing
     };
 
     const validateForm = () => {
@@ -34,11 +48,6 @@ export default function ResetPasswordForm() {
         e.preventDefault();
         setError('');
 
-        if (!token) {
-            setError('Invalid reset token');
-            return;
-        }
-
         if (!validateForm()) return;
 
         setLoading(true);
@@ -53,6 +62,7 @@ export default function ResetPasswordForm() {
             }
         } catch (err) {
             setError('An unexpected error occurred');
+            console.error('Reset password error:', err);
         } finally {
             setLoading(false);
         }
@@ -81,6 +91,7 @@ export default function ResetPasswordForm() {
                         className="mt-1 block w-full px-3 py-2 bg-white/5 border border-gray-600 rounded-md text-white 
                         shadow-sm placeholder-gray-400 focus:outline-none focus:border-green-500 focus:ring-1 focus:ring-green-500"
                         placeholder="Enter your new password"
+                        minLength={6}
                     />
                 </div>
                 <div>
@@ -97,11 +108,12 @@ export default function ResetPasswordForm() {
                         className="mt-1 block w-full px-3 py-2 bg-white/5 border border-gray-600 rounded-md text-white 
                         shadow-sm placeholder-gray-400 focus:outline-none focus:border-green-500 focus:ring-1 focus:ring-green-500"
                         placeholder="Confirm your new password"
+                        minLength={6}
                     />
                 </div>
                 <button
                     type="submit"
-                    disabled={loading}
+                    disabled={loading || !formData.password || !formData.confirmPassword}
                     className="w-full py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white 
                     bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 
                     disabled:opacity-50 disabled:cursor-not-allowed transition-colors duration-200"
