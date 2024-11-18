@@ -2,7 +2,7 @@ import { createContext, useContext, useState, useEffect } from 'react';
 import axios from 'axios';
 
 // Set default base URL and credentials
-axios.defaults.baseURL = import.meta.env.VITE_API_URL;
+axios.defaults.baseURL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 axios.defaults.withCredentials = true;
 
 const AuthContext = createContext();
@@ -24,6 +24,7 @@ export const AuthProvider = ({ children }) => {
             }
         } catch (error) {
             console.error('Auth check failed:', error.response?.data || error.message);
+            setUser(null);
         } finally {
             setLoading(false);
         }
@@ -49,15 +50,20 @@ export const AuthProvider = ({ children }) => {
     const login = async (credentials) => {
         try {
             setError(null);
-            console.log('Attempting login with:', credentials);
             const response = await axios.post('/api/auth/login', credentials);
             console.log('Login response:', response.data);
             
             if (response.data.success) {
-                setUser(response.data.user);
+                const userData = {
+                    ...response.data.user,
+                    isVerified: response.data.user.isVerified,
+                    last_login: response.data.user.last_login
+                };
+                console.log('Setting user state:', userData);
+                setUser(userData);
                 return { success: true };
             }
-            return { success: false, error: 'Login failed' };
+            return { success: false, error: response.data.message || 'Login failed' };
         } catch (err) {
             console.error('Login error:', err.response?.data || err.message);
             const errorMessage = err.response?.data?.message || 'Login failed';
@@ -76,9 +82,28 @@ export const AuthProvider = ({ children }) => {
             return { success: false, error: 'Logout failed' };
         } catch (err) {
             console.error('Logout error:', err.response?.data || err.message);
-            const errorMessage = err.response?.data?.message || 'Logout failed';
-            setError(errorMessage);
-            return { success: false, error: errorMessage };
+            return { success: false, error: err.response?.data?.message || 'Logout failed' };
+        }
+    };
+
+    const verifyEmail = async (code) => {
+        try {
+            const response = await axios.post('/api/auth/verify-email', { code });
+            console.log('Verify email response:', response.data);
+            
+            if (response.data.success) {
+                const userData = {
+                    ...response.data.user,
+                    isVerified: response.data.user.isVerified
+                };
+                console.log('Updating user state after verification:', userData);
+                setUser(userData);
+                return { success: true };
+            }
+            return { success: false, error: response.data.message || 'Email verification failed' };
+        } catch (err) {
+            console.error('Email verification error:', err.response?.data || err.message);
+            return { success: false, error: err.response?.data?.message || 'Email verification failed' };
         }
     };
 
@@ -90,7 +115,7 @@ export const AuthProvider = ({ children }) => {
             console.error('Forgot password error:', err.response?.data || err.message);
             return { 
                 success: false, 
-                error: err.response?.data?.message || 'Failed to process password reset request' 
+                error: err.response?.data?.message || 'Failed to process forgot password request' 
             };
         }
     };
@@ -108,19 +133,18 @@ export const AuthProvider = ({ children }) => {
         }
     };
 
-    const verifyEmail = async (code) => {
+    const resendVerification = async (email) => {
         try {
-            const response = await axios.post('/api/auth/verify-email', { code });
-            if (response.data.success) {
-                setUser(response.data.user);
-                return { success: true };
-            }
-            return { success: false, error: 'Email verification failed' };
+            const response = await axios.post('/api/auth/resend-verification', { email });
+            return { 
+                success: true, 
+                message: response.data.message || 'Verification email sent successfully!' 
+            };
         } catch (err) {
-            console.error('Email verification error:', err.response?.data || err.message);
+            console.error('Resend verification error:', err.response?.data || err.message);
             return { 
                 success: false, 
-                error: err.response?.data?.message || 'Email verification failed' 
+                error: err.response?.data?.message || 'Failed to resend verification email' 
             };
         }
     };
@@ -132,9 +156,10 @@ export const AuthProvider = ({ children }) => {
         register,
         login,
         logout,
+        verifyEmail,
         forgotPassword,
         resetPassword,
-        verifyEmail
+        resendVerification
     };
 
     return (

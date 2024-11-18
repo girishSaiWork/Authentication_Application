@@ -6,7 +6,9 @@ import {
     verifyEmail, 
     forgotPassword, 
     resetPassword, 
-    checkAuth 
+    checkAuth,
+    checkVerificationStatus,
+    resendVerification
 } from "../controllers/auth_controller.js"
 import { verifyToken } from "../middleware/verifyToken.js"
 
@@ -18,6 +20,8 @@ router.post('/login', login)
 router.post('/verify-email', verifyEmail)
 router.post('/forgot-password', forgotPassword)
 router.post('/reset-password', resetPassword)
+router.post('/resend-verification', resendVerification)
+router.get('/verification-status', checkVerificationStatus)
 
 // Protected routes (require authentication)
 router.use(verifyToken)

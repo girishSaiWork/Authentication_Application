@@ -13,12 +13,18 @@ const PORT = process.env.PORT || 5000
 // Middleware
 app.use(express.json());
 app.use(cookieParser());
-app.use(cors({
-    origin: process.env.FRONTEND_URL || 'http://localhost:5173',
+
+// CORS configuration
+const corsOptions = {
+    origin: ['http://localhost:5173', 'http://localhost:5175'],
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization']
-}));
+    allowedHeaders: ['Content-Type', 'Authorization', 'Cookie'],
+    exposedHeaders: ['Set-Cookie']
+};
+
+// Apply CORS with options
+app.use(cors(corsOptions));
 
 // Health check
 app.get("/", (req, res) => {
@@ -30,11 +36,28 @@ app.use("/api/auth", authRoutes);
 
 // Error handling middleware
 app.use((err, req, res, next) => {
-    console.error('Error:', err);
-    res.status(500).json({
+    console.error('Error:', err.message || err);
+    
+    // Handle CORS errors specifically
+    if (err.message && err.message.includes('CORS')) {
+        return res.status(403).json({
+            success: false,
+            message: 'CORS error: Origin not allowed'
+        });
+    }
+    
+    // Handle JWT errors
+    if (err.name === 'JsonWebTokenError') {
+        return res.status(401).json({
+            success: false,
+            message: 'Invalid authentication token'
+        });
+    }
+
+    // Handle other errors
+    res.status(err.status || 500).json({
         success: false,
-        message: 'Something went wrong!',
-        error: process.env.NODE_ENV === 'development' ? err.message : 'Internal server error'
+        message: err.message || 'Internal Server Error'
     });
 });
 

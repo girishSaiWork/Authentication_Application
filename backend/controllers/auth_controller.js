@@ -84,16 +84,16 @@ const register = async (req, res) => {
 };
 
 const login = async (req, res) => {
-    console.log('Login request body:', req.body);
-    
-    const { email, password } = req.body;
     try {
-        if (!req.body) {
-            return res.status(400).json({
-                success: false,
-                message: "Request body is missing"
-            });
-        }
+        console.log('Login request received:', {
+            email: req.body?.email,
+            headers: {
+                origin: req.headers?.origin,
+                'content-type': req.headers?.['content-type']
+            }
+        });
+        
+        const { email, password } = req.body;
 
         if (!email || !password) {
             return res.status(400).json({
@@ -103,63 +103,78 @@ const login = async (req, res) => {
         }
 
         const user = await User.findOne({ email });
-        console.log("User found:", { email, found: !!user });
+        console.log("User lookup result:", { 
+            email, 
+            found: !!user,
+            verified: user?.isVerified,
+            userId: user?.id
+        });
         
         if (!user) {
             return res.status(400).json({
                 success: false, 
-                message: "User not found"
+                message: "Invalid email or password"
             });
         }
 
-        // For the existing user with plain text password
-        let isPasswordCorrect;
-        if (user.password === 'password') {
-            // Handle the plain text password case
-            isPasswordCorrect = password === 'password';
-            if (isPasswordCorrect) {
-                // Update the password to be hashed
-                const hashedPassword = await bcrypt.hash(password, 10);
-                await User.updatePassword(user.id, hashedPassword);
-                console.log("Updated plain text password to hash");
-            }
-        } else {
-            // Normal password comparison
-            isPasswordCorrect = await bcrypt.compare(password, user.password);
+        // Check verification status
+        if (user.isVerified !== true) {
+            console.log('User not verified:', {
+                userId: user.id,
+                email: user.email,
+                verificationStatus: user.isVerified
+            });
+            return res.status(400).json({
+                success: false,
+                message: "Please verify your email before logging in"
+            });
         }
 
-        console.log("Password check:", { correct: isPasswordCorrect });
-
+        // Check password
+        const isPasswordCorrect = await bcrypt.compare(password, user.password);
+        console.log("Password verification:", { correct: isPasswordCorrect });
+        
         if (!isPasswordCorrect) {
             return res.status(400).json({
                 success: false, 
-                message: "Invalid password"
+                message: "Invalid email or password"
             });
         }
 
-        const token = generateJWTTokenAndSetCookie(user.id, res);
-        console.log("JWT token generated:", token);
+        try {
+            // Update last login time
+            await User.updateLastLogin(user.id);
+            console.log('Updated last login time for user:', user.id);
 
-        // Update lastLogin
-        const updatedUser = await User.updateLastLogin(user.id);
-        console.log("Last login updated");
+            // Get updated user data
+            const updatedUser = await User.findOne({ email });
+            
+            // Generate JWT token and set cookie
+            const token = await generateJWTTokenAndSetCookie(updatedUser, res);
+            console.log('Login successful, token generated');
 
-        return res.status(200).json({
-            success: true, 
-            message: "Login successful",
-            user: {
-                id: updatedUser.id,
-                name: updatedUser.name,
-                email: updatedUser.email,
-                is_verified: updatedUser.is_verified,
-                last_login: updatedUser.last_login
-            }
-        });
+            return res.status(200).json({
+                success: true,
+                user: {
+                    id: updatedUser.id,
+                    name: updatedUser.name,
+                    email: updatedUser.email,
+                    isVerified: updatedUser.isVerified,
+                    last_login: updatedUser.last_login
+                }
+            });
+        } catch (tokenError) {
+            console.error('Error in login process:', tokenError);
+            return res.status(500).json({
+                success: false,
+                message: "Login failed - Please try again"
+            });
+        }
     } catch (error) {
-        console.error('Login error:', error);
-        return res.status(400).json({
-            success: false, 
-            message: error.message || "Login failed"
+        console.error("Login error:", error.message || error);
+        return res.status(500).json({
+            success: false,
+            message: "Login failed - Please try again"
         });
     }
 };
@@ -250,25 +265,50 @@ const resetPassword = async (req, res) => {
 const verifyEmail = async (req, res) => {
     const { code } = req.body;
     try {
+        console.log('Starting email verification process');
         console.log('Received verification code:', code);
         console.log('Current time:', new Date());
 
         const user = await User.findByVerificationToken(code);
-
-        console.log('Found user:', user);
+        console.log('User lookup result:', {
+            found: !!user,
+            userId: user?.id,
+            email: user?.email,
+            currentVerificationStatus: user?.is_verified
+        });
 
         if (!user) {
+            console.log('No user found with verification token:', code);
             return res.status(400).json({
-                success: false, message: "Invalid or expired verification code"
+                success: false, 
+                message: "Invalid or expired verification code"
             });
         }
 
         // update the user's email verification status
         const updatedUser = await User.verifyUser(user.id);
+        console.log('User verification update result:', {
+            userId: updatedUser.id,
+            email: updatedUser.email,
+            newVerificationStatus: updatedUser.is_verified,
+            verificationToken: updatedUser.verification_token
+        });
 
-        console.log('Updated user:', updatedUser);
+        if (!updatedUser.is_verified) {
+            console.error('Failed to update user verification status');
+            return res.status(500).json({
+                success: false,
+                message: "Failed to verify email. Please try again."
+            });
+        }
 
-        await sendWelcomeEmail(updatedUser.email, updatedUser.name);
+        try {
+            await sendWelcomeEmail(updatedUser.email, updatedUser.name);
+            console.log('Welcome email sent successfully');
+        } catch (emailError) {
+            console.error('Failed to send welcome email:', emailError);
+            // Continue even if welcome email fails
+        }
 
         return res.status(200).json({
             success: true, 
@@ -277,17 +317,74 @@ const verifyEmail = async (req, res) => {
                 id: updatedUser.id,
                 name: updatedUser.name,
                 email: updatedUser.email,
-                is_verified: updatedUser.is_verified
+                isVerified: updatedUser.is_verified
             }
         });
-        
     } catch (error) {
-        console.error('Error in verifyEmail function:', error);
-        return res.status(400).json({
-            success: false, message: error.message
+        console.error('Email verification error:', error);
+        return res.status(500).json({
+            success: false,
+            message: error.message || "Failed to verify email"
         });
     }
-}
+};
+
+const resendVerification = async (req, res) => {
+    console.log('Resend verification request:', req.body);
+
+    try {
+        const { email } = req.body;
+
+        if (!email) {
+            return res.status(400).json({
+                success: false,
+                message: "Email is required"
+            });
+        }
+
+        const user = await User.findOne({ email });
+        
+        if (!user) {
+            return res.status(404).json({
+                success: false,
+                message: "User not found"
+            });
+        }
+
+        if (user.isVerified) {
+            return res.status(400).json({
+                success: false,
+                message: "Email is already verified"
+            });
+        }
+
+        // Generate new verification code
+        const verificationCode = getVerificationCode();
+        const verificationTokenExpires = new Date(Date.now() + 1000 * 60 * 60 * 24); // 24 hours
+
+        // Update user with new verification token
+        await User.updateVerificationToken(
+            user.id,
+            verificationCode,
+            verificationTokenExpires
+        );
+
+        // Send new verification email
+        await sendVerificationEmail(user.email, verificationCode);
+
+        res.status(200).json({
+            success: true,
+            message: "Verification email sent successfully"
+        });
+
+    } catch (error) {
+        console.error('Resend verification error:', error);
+        res.status(500).json({
+            success: false,
+            message: "Failed to resend verification email"
+        });
+    }
+};
 
 const checkAuth = async (req, res) => {
     try {
@@ -305,16 +402,61 @@ const checkAuth = async (req, res) => {
                 id: user.id,
                 name: user.name,
                 email: user.email,
-                is_verified: user.is_verified
+                isVerified: user.isVerified,
+                lastLogin: user.last_login
             }
         });
     } catch (error) {
         console.error('Check auth error:', error);
-        res.status(401).json({
+        res.status(500).json({
             success: false,
-            message: "Unauthorized"
+            message: "Authentication check failed"
         });
     }
 };
 
-export { register, login, logout, forgotPassword, resetPassword, checkAuth, verifyEmail };
+const checkVerificationStatus = async (req, res) => {
+    try {
+        const { email } = req.query;
+        console.log('Checking verification status for:', email);
+
+        if (!email) {
+            return res.status(400).json({
+                success: false,
+                message: "Email is required"
+            });
+        }
+
+        const user = await User.findOne({ email });
+        
+        if (!user) {
+            return res.status(404).json({
+                success: false,
+                message: "User not found"
+            });
+        }
+
+        res.status(200).json({
+            success: true,
+            isVerified: user.isVerified
+        });
+    } catch (error) {
+        console.error('Check verification status error:', error);
+        res.status(500).json({
+            success: false,
+            message: "Failed to check verification status"
+        });
+    }
+};
+
+export { 
+    register, 
+    login, 
+    logout, 
+    forgotPassword,
+    resetPassword,
+    verifyEmail,
+    checkAuth,
+    checkVerificationStatus,
+    resendVerification 
+};

@@ -33,19 +33,29 @@ export default function RegisterForm() {
     const handleSubmit = async (e) => {
         e.preventDefault();
         setError('');
+        console.log('Starting registration with data:', { ...formData, password: '[REDACTED]' });
 
-        if (!validateForm()) return;
+        if (!validateForm()) {
+            console.log('Form validation failed');
+            return;
+        }
 
         setLoading(true);
         try {
             const { confirmPassword, ...registrationData } = formData;
+            console.log('Sending registration request...');
             const result = await register(registrationData);
+            console.log('Registration response:', { success: result.success, error: result.error });
+            
             if (result.success) {
+                console.log('Registration successful, navigating to verify-email');
                 navigate('/verify-email');
             } else {
+                console.log('Registration failed:', result.error);
                 setError(result.error || 'Registration failed');
             }
         } catch (err) {
+            console.error('Registration error:', err);
             setError('An unexpected error occurred');
         } finally {
             setLoading(false);

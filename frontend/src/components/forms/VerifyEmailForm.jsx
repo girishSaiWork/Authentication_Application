@@ -5,9 +5,11 @@ import { useAuth } from '../../context/AuthContext';
 export default function VerifyEmailForm() {
     const [verificationCode, setVerificationCode] = useState('');
     const [error, setError] = useState('');
+    const [success, setSuccess] = useState('');
     const [loading, setLoading] = useState(false);
+    const [resending, setResending] = useState(false);
     const navigate = useNavigate();
-    const { verifyEmail } = useAuth();
+    const { verifyEmail, user, resendVerification } = useAuth();
 
     const handleSubmit = async (e) => {
         e.preventDefault();
@@ -30,6 +32,30 @@ export default function VerifyEmailForm() {
         }
     };
 
+    const handleResendCode = async () => {
+        if (!user?.email) {
+            setError('No email address found. Please try logging in again.');
+            return;
+        }
+
+        setResending(true);
+        setError('');
+        setSuccess('');
+
+        try {
+            const result = await resendVerification(user.email);
+            if (result.success) {
+                setSuccess(result.message);
+            } else {
+                setError(result.error);
+            }
+        } catch (err) {
+            setError('Failed to resend verification code');
+        } finally {
+            setResending(false);
+        }
+    };
+
     return (
         <div className="w-full max-w-md p-8 bg-white/10 backdrop-blur-md rounded-lg shadow-lg">
             <h2 className="text-3xl font-bold text-center text-white mb-8">Verify Your Email</h2>
@@ -39,6 +65,11 @@ export default function VerifyEmailForm() {
             {error && (
                 <div className="bg-red-500/10 border border-red-500 text-red-500 px-4 py-2 rounded mb-4">
                     {error}
+                </div>
+            )}
+            {success && (
+                <div className="bg-green-500/10 border border-green-500 text-green-500 px-4 py-2 rounded mb-4">
+                    {success}
                 </div>
             )}
             <form onSubmit={handleSubmit} className="space-y-6">
@@ -73,10 +104,11 @@ export default function VerifyEmailForm() {
             <p className="mt-4 text-center text-sm text-gray-300">
                 Didn't receive the code?{' '}
                 <button
-                    onClick={() => {/* Implement resend code functionality */}}
-                    className="text-green-400 hover:text-green-300 focus:outline-none"
+                    onClick={handleResendCode}
+                    disabled={resending}
+                    className="text-green-400 hover:text-green-300 focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                    Resend Code
+                    {resending ? 'Sending...' : 'Resend Code'}
                 </button>
             </p>
         </div>

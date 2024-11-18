@@ -19,16 +19,23 @@ export default function LoginForm() {
     const handleSubmit = async (e) => {
         e.preventDefault();
         setError('');
+        console.log('Starting login with email:', formData.email);
         setLoading(true);
 
         try {
+            console.log('Sending login request...');
             const result = await login(formData);
+            console.log('Login response:', { success: result.success, error: result.error });
+            
             if (result.success) {
+                console.log('Login successful, navigating to dashboard');
                 navigate('/dashboard');
             } else {
+                console.log('Login failed:', result.error);
                 setError(result.error || 'Login failed');
             }
         } catch (err) {
+            console.error('Login error:', err);
             setError('An unexpected error occurred');
         } finally {
             setLoading(false);
